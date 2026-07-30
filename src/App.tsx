@@ -60,7 +60,7 @@ function CountUp({ value, decimals = 0, prefix = "", suffix = "", reduceMotion =
   return <span ref={ref}>{prefix}{reduceMotion ? value.toFixed(decimals) : (0).toFixed(decimals)}{suffix}</span>;
 }
 
-function ParticleField({ reduceMotion, density = 44 }: { reduceMotion: boolean; density?: number }) {
+function ParticleField({ reduceMotion, density = 180 }: { reduceMotion: boolean; density?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -72,7 +72,6 @@ function ParticleField({ reduceMotion, density = 44 }: { reduceMotion: boolean; 
     let height = 0;
     let frame = 0;
     let visible = document.visibilityState === "visible";
-    const pointer = { x: -1000, y: -1000 };
     type Dot = { x: number; y: number; vx: number; vy: number; r: number };
     let dots: Dot[] = [];
 
@@ -84,25 +83,16 @@ function ParticleField({ reduceMotion, density = 44 }: { reduceMotion: boolean; 
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const count = Math.max(20, Math.min(density, Math.round((width * height) / 28000)));
+      const count = Math.max(48, Math.min(density, Math.round((width * height) / 12000)));
       dots = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.18,
-        vy: (Math.random() - 0.5) * 0.18,
-        r: 0.8 + Math.random() * 1.4,
+        vx: (Math.random() - 0.5) * 0.12,
+        vy: (Math.random() - 0.5) * 0.12,
+        r: 1 + Math.random() * 1.5,
       }));
     };
 
-    const onPointerMove = (event: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      pointer.x = event.clientX - rect.left;
-      pointer.y = event.clientY - rect.top;
-    };
-    const onPointerLeave = () => {
-      pointer.x = -1000;
-      pointer.y = -1000;
-    };
     const onVisibility = () => {
       visible = document.visibilityState === "visible";
       if (visible && frame === 0) {
@@ -123,13 +113,8 @@ function ParticleField({ reduceMotion, density = 44 }: { reduceMotion: boolean; 
           if (dot.x < 0 || dot.x > width) dot.vx *= -1;
           if (dot.y < 0 || dot.y > height) dot.vy *= -1;
         }
-        const pointerDistance = Math.hypot(dot.x - pointer.x, dot.y - pointer.y);
-        if (!reduceMotion && pointerDistance < 110 && pointerDistance > 0) {
-          dot.x += ((dot.x - pointer.x) / pointerDistance) * 0.22;
-          dot.y += ((dot.y - pointer.y) / pointerDistance) * 0.22;
-        }
         ctx.beginPath();
-        ctx.fillStyle = "rgba(38, 88, 255, .42)";
+        ctx.fillStyle = "rgba(43, 98, 255, .7)";
         ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
         ctx.fill();
       }
@@ -139,23 +124,14 @@ function ParticleField({ reduceMotion, density = 44 }: { reduceMotion: boolean; 
         for (let j = i + 1; j < dots.length; j += 1) {
           const other = dots[j];
           const distance = Math.hypot(dot.x - other.x, dot.y - other.y);
-          if (distance < 105) {
+          if (distance < 145) {
             ctx.beginPath();
-            ctx.strokeStyle = `rgba(38, 88, 255, ${(1 - distance / 105) * 0.13})`;
-            ctx.lineWidth = 0.7;
+            ctx.strokeStyle = `rgba(43, 98, 255, ${(1 - distance / 145) * 0.25})`;
+            ctx.lineWidth = 0.8;
             ctx.moveTo(dot.x, dot.y);
             ctx.lineTo(other.x, other.y);
             ctx.stroke();
           }
-        }
-        const pointerDistance = Math.hypot(dot.x - pointer.x, dot.y - pointer.y);
-        if (pointerDistance < 155) {
-          ctx.beginPath();
-          ctx.strokeStyle = `rgba(38, 88, 255, ${(1 - pointerDistance / 155) * 0.46})`;
-          ctx.lineWidth = 0.9;
-          ctx.moveTo(dot.x, dot.y);
-          ctx.lineTo(pointer.x, pointer.y);
-          ctx.stroke();
         }
       }
       if (!reduceMotion && visible) frame = requestAnimationFrame(draw);
@@ -169,69 +145,16 @@ function ParticleField({ reduceMotion, density = 44 }: { reduceMotion: boolean; 
     resize();
     draw();
     if (!reduceMotion) {
-      window.addEventListener("pointermove", onPointerMove, { passive: true });
-      document.documentElement.addEventListener("pointerleave", onPointerLeave);
-      window.addEventListener("blur", onPointerLeave);
       document.addEventListener("visibilitychange", onVisibility);
     }
     return () => {
       cancelAnimationFrame(frame);
       resizeObserver.disconnect();
-      window.removeEventListener("pointermove", onPointerMove);
-      document.documentElement.removeEventListener("pointerleave", onPointerLeave);
-      window.removeEventListener("blur", onPointerLeave);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [density, reduceMotion]);
 
   return <canvas className="particle-field" ref={canvasRef} aria-hidden="true" />;
-}
-
-function CustomCursor({ reduceMotion }: { reduceMotion: boolean }) {
-  const cursorRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (reduceMotion || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-    const cursor = cursorRef.current;
-    if (!cursor) return;
-    document.documentElement.classList.add("custom-cursor-ready");
-    let x = -100;
-    let y = -100;
-    let tx = -100;
-    let ty = -100;
-    let frame = 0;
-
-    const move = (event: PointerEvent) => {
-      tx = event.clientX;
-      ty = event.clientY;
-      cursor.classList.add("visible");
-    };
-    const over = (event: PointerEvent) => {
-      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-cursor]");
-      cursor.dataset.label = target?.dataset.cursor ?? "";
-      cursor.classList.toggle("interactive", Boolean(target));
-    };
-    const leave = () => cursor.classList.remove("visible");
-    const tick = () => {
-      x += (tx - x) * 0.2;
-      y += (ty - y) * 0.2;
-      cursor.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      frame = requestAnimationFrame(tick);
-    };
-    window.addEventListener("pointermove", move, { passive: true });
-    window.addEventListener("pointerover", over, { passive: true });
-    document.documentElement.addEventListener("mouseleave", leave);
-    frame = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(frame);
-      document.documentElement.classList.remove("custom-cursor-ready");
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerover", over);
-      document.documentElement.removeEventListener("mouseleave", leave);
-    };
-  }, [reduceMotion]);
-
-  return <div className="custom-cursor" ref={cursorRef} aria-hidden="true"><span /></div>;
 }
 
 function PdfReader({ documents, lang, labels }: {
@@ -252,7 +175,7 @@ function PdfReader({ documents, lang, labels }: {
           <span>{labels.sourceDocs}</span>
           <p>{labels.sourceDocsHelp}</p>
         </div>
-        <a className="pdf-open-link" href={activeSrc} target="_blank" rel="noreferrer" data-cursor={labels.openNew}>
+        <a className="pdf-open-link" href={activeSrc} target="_blank" rel="noreferrer">
           {labels.openNew}<span aria-hidden="true">↗</span>
         </a>
       </div>
@@ -265,7 +188,6 @@ function PdfReader({ documents, lang, labels }: {
             aria-selected={document.id === active.id}
             className={document.id === active.id ? "active" : ""}
             onClick={() => setActiveId(document.id)}
-            data-cursor={labels.readPdf}
           >
             <strong>{document.title[lang]}</strong>
             <span>{document.pages} {labels.pages}</span>
@@ -287,7 +209,6 @@ function PdfReader({ documents, lang, labels }: {
             key={document.id}
             href={assetPath(document.src)}
             download={document.filename}
-            data-cursor={labels.downloadPdf}
           >
             <span>{document.title[lang]}</span>
             <strong>{labels.downloadPdf} ↓</strong>
@@ -323,7 +244,7 @@ function ProjectDialog({ project, lang, labels, onClose }: {
       <div className="dialog-shell">
         <header className="dialog-header">
           <span>{project.index} / 05 · {labels.caseLabel}</span>
-          <button type="button" onClick={onClose} aria-label={labels.close} data-cursor={labels.close}>
+          <button type="button" onClick={onClose} aria-label={labels.close}>
             {labels.close}<b aria-hidden="true">×</b>
           </button>
         </header>
@@ -367,7 +288,7 @@ function ProjectDialog({ project, lang, labels, onClose }: {
           </section>
         </div>
         <PdfReader documents={project.documents} lang={lang} labels={labels} />
-        <button type="button" className="dialog-close-bottom" onClick={onClose} data-cursor={labels.close}>
+        <button type="button" className="dialog-close-bottom" onClick={onClose}>
           {labels.close}<span aria-hidden="true">↑</span>
         </button>
       </div>
@@ -400,7 +321,7 @@ function WritingDialog({ document, lang, labels, onClose }: {
       <div className="dialog-shell">
         <header className="dialog-header">
           <span>{document.number} / 05 · {labels.writingLabel}</span>
-          <button type="button" onClick={onClose} aria-label={labels.close} data-cursor={labels.close}>
+          <button type="button" onClick={onClose} aria-label={labels.close}>
             {labels.close}<b aria-hidden="true">×</b>
           </button>
         </header>
@@ -423,7 +344,6 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [slide, setSlide] = useState(0);
-  const [carouselUserPaused, setCarouselUserPaused] = useState(false);
   const [carouselHovered, setCarouselHovered] = useState(false);
   const [carouselFocusWithin, setCarouselFocusWithin] = useState(false);
   const [capability, setCapability] = useState(0);
@@ -458,10 +378,10 @@ export default function App() {
   }, [modalOpen]);
 
   useEffect(() => {
-    if (reduceMotion || carouselUserPaused || carouselHovered || carouselFocusWithin || modalOpen) return;
+    if (reduceMotion || carouselHovered || carouselFocusWithin || modalOpen) return;
     const timer = window.setInterval(() => setSlide((value) => (value + 1) % projects.length), 3500);
     return () => window.clearInterval(timer);
-  }, [carouselFocusWithin, carouselHovered, carouselUserPaused, modalOpen, reduceMotion]);
+  }, [carouselFocusWithin, carouselHovered, modalOpen, reduceMotion]);
 
   useEffect(() => {
     document.documentElement.classList.add("reveal-ready");
@@ -502,21 +422,22 @@ export default function App() {
     ["#contact", c.navContact],
   ];
 
-  const activeSlide = projects[slide];
   const activeCapability = c.capabilities[capability];
   const activeCapabilityProject = projects.find((project) => project.id === activeCapability.projectId) ?? projects[0];
 
   return (
     <>
       <a className="skip-link" href="#main">{c.skip}</a>
-      <CustomCursor reduceMotion={reduceMotion} />
+      <div className="global-particle-field" aria-hidden="true">
+        <ParticleField reduceMotion={reduceMotion} density={180} />
+      </div>
       <header className="site-header">
         <div className="nav-shell">
-          <a className="brand" href="#top" aria-label={c.brandAria} data-cursor="WYH / PR">
+          <a className="brand" href="#top" aria-label={c.brandAria}>
             <span>WYH</span><span>/</span><span>PR</span>
           </a>
           <nav className="desktop-nav" aria-label={lang === "zh" ? "主导航" : "Primary navigation"}>
-            {navItems.map(([href, label]) => <a key={href} href={href} data-cursor={label}>{label}</a>)}
+            {navItems.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
           </nav>
           <div className="nav-actions">
             <div className="language-toggle" role="group" aria-label={c.language}>
@@ -535,7 +456,6 @@ export default function App() {
 
       <main id="main">
         <div className="hero-shell" id="top">
-          <ParticleField reduceMotion={reduceMotion} density={52} />
           <section className="hero">
             <div className="hero-copy">
               <p className="eyebrow reveal">{c.eyebrow}</p>
@@ -544,8 +464,8 @@ export default function App() {
               </h1>
               <p className="hero-lead reveal">{c.heroLead}</p>
               <div className="hero-actions reveal">
-                <a className="primary-link" href="#work" data-cursor={c.viewWork}>{c.viewWork}<span aria-hidden="true">↘</span></a>
-                <a className="secondary-link" href={assetPath("/documents/wu-yunheng-resume.pdf")} download="Wu-Yunheng-Resume.pdf" data-cursor={c.resume}>{c.resume}<span aria-hidden="true">↓</span></a>
+                <a className="primary-link" href="#work">{c.viewWork}<span aria-hidden="true">↘</span></a>
+                <a className="secondary-link" href={assetPath("/documents/wu-yunheng-resume.pdf")} download="Wu-Yunheng-Resume.pdf">{c.resume}<span aria-hidden="true">↓</span></a>
               </div>
               <p className="availability reveal"><span aria-hidden="true" />{c.availability}</p>
             </div>
@@ -562,28 +482,36 @@ export default function App() {
                 }
               }}
             >
-              <button type="button" className="hero-slide" onClick={() => openProject(activeSlide.id)} data-cursor={c.openCase} aria-label={`${c.openCase}: ${activeSlide.title[lang]}`}>
-                {projects.map((project, index) => (
-                  <img key={project.id} src={assetPath(project.cover)} alt="" className={index === slide ? "active" : ""} aria-hidden={index !== slide} />
-                ))}
-                <span className="hero-slide-overlay" />
-                <span className="hero-slide-copy">
-                  <small>{activeSlide.index} / 05 · {activeSlide.sector[lang]}</small>
-                  <strong>{activeSlide.title[lang]}</strong>
-                  <em>{c.openCase} ↗</em>
-                </span>
-              </button>
-              <div className="carousel-controls">
-                <span>{String(slide + 1).padStart(2, "0")} / 05</span>
-                <div>
-                  <button type="button" onClick={() => setSlide((slide - 1 + projects.length) % projects.length)} aria-label={c.previous}>←</button>
-                  {!reduceMotion && (
-                    <button type="button" onClick={() => setCarouselUserPaused((value) => !value)} aria-label={carouselUserPaused ? c.play : c.pause}>
-                      {carouselUserPaused ? "▶" : "Ⅱ"}
+              <div className="hero-card-stack">
+                {projects.map((project, index) => {
+                  const offset = (index - slide + projects.length) % projects.length;
+                  const stackClass = offset === 0
+                    ? "is-active"
+                    : offset === 1
+                      ? "is-next"
+                      : offset === 2
+                        ? "is-third"
+                        : "is-queued";
+                  return (
+                    <button
+                      type="button"
+                      key={project.id}
+                      className={`hero-project-card ${stackClass}`}
+                      onClick={() => offset === 0 ? openProject(project.id) : setSlide(index)}
+                      tabIndex={offset <= 2 ? 0 : -1}
+                      aria-hidden={offset > 2}
+                      aria-label={`${offset === 0 ? c.openCase : c.next}: ${project.title[lang]}`}
+                    >
+                      <img src={assetPath(project.cover)} alt="" aria-hidden="true" />
+                      <span className="hero-slide-overlay" />
+                      <span className="hero-slide-copy">
+                        <small>{project.index} / 05 · {project.sector[lang]}</small>
+                        <strong>{project.title[lang]}</strong>
+                        <em>{c.openCase} ↗</em>
+                      </span>
                     </button>
-                  )}
-                  <button type="button" onClick={() => setSlide((slide + 1) % projects.length)} aria-label={c.next}>→</button>
-                </div>
+                  );
+                })}
               </div>
             </div>
           </section>
@@ -593,15 +521,15 @@ export default function App() {
               <p>{c.proofFootnote}</p>
             </div>
             <div className="proof-grid">
-              <button type="button" onClick={() => openProject("tcl")} data-cursor="TCL">
+              <button type="button" onClick={() => openProject("tcl")}>
                 <strong><CountUp value={21.67} decimals={2} suffix="M+" reduceMotion={reduceMotion} /></strong>
                 <span>{lang === "zh" ? "TCL现场总人流" : "TCL project venue footfall"}</span>
               </button>
-              <button type="button" onClick={() => openProject("tcl")} data-cursor="TCL">
+              <button type="button" onClick={() => openProject("tcl")}>
                 <strong><CountUp value={2.76} decimals={2} suffix="M+" reduceMotion={reduceMotion} /></strong>
                 <span>{lang === "zh" ? "TCL内容播放/曝光" : "TCL content views/reach"}</span>
               </button>
-              <button type="button" onClick={() => openProject("bonpoint")} data-cursor="Bonpoint">
+              <button type="button" onClick={() => openProject("bonpoint")}>
                 <strong><CountUp value={1} suffix="M+" reduceMotion={reduceMotion} /></strong>
                 <span>{lang === "zh" ? "Bonpoint年化全渠道阅读*" : "Bonpoint annualised reads*"}</span>
               </button>
@@ -613,8 +541,7 @@ export default function App() {
           </section>
         </div>
 
-        <section className="section positioning-section particle-section" id="positioning">
-          <ParticleField reduceMotion={reduceMotion} density={34} />
+        <section className="section positioning-section" id="positioning">
           <div className="section-label reveal">{c.positioningLabel}</div>
           <div className="positioning-grid">
             <h2 className="reveal">{c.positioningTitle}</h2>
@@ -625,8 +552,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="section work-section particle-section" id="work">
-          <ParticleField reduceMotion={reduceMotion} density={48} />
+        <section className="section work-section" id="work">
           <div className="section-heading reveal">
             <div><span className="section-label">{c.workLabel}</span><h2>{c.workTitle}</h2></div>
             <p>{c.workBody}</p>
@@ -640,7 +566,7 @@ export default function App() {
           <div className="project-grid">
             {visibleProjects.map((project) => (
               <article className={`project-card project-${project.id}`} key={project.id}>
-                <button type="button" className="project-open" onClick={() => openProject(project.id)} data-cursor={c.openCase}>
+                <button type="button" className="project-open" onClick={() => openProject(project.id)}>
                   <div className="project-media"><img src={assetPath(project.cover)} alt={project.title[lang]} loading="lazy" /></div>
                   <div className="project-overlay">
                     <span className="project-topline"><b>{project.index}</b><em>{project.sector[lang]}</em><i>{project.documents.length} PDF</i></span>
@@ -673,14 +599,13 @@ export default function App() {
                   onMouseEnter={() => setCapability(index)}
                   onFocus={() => setCapability(index)}
                   onClick={() => openProject(item.projectId)}
-                  data-cursor={c.openCase}
                 >
                   <span>0{index + 1}</span>
                   <div><h3>{item.title}</h3><p>{item.body}</p><strong>{item.projects} ↗</strong></div>
                 </button>
               ))}
             </div>
-            <button type="button" className="capability-preview" onClick={() => openProject(activeCapabilityProject.id)} data-cursor={c.openCase}>
+            <button type="button" className="capability-preview" onClick={() => openProject(activeCapabilityProject.id)}>
               <img src={assetPath(activeCapabilityProject.cover)} alt={activeCapabilityProject.title[lang]} />
               <span>{activeCapability.projects}</span>
             </button>
@@ -711,8 +636,8 @@ export default function App() {
                 <h3>{document.title[lang]}</h3>
                 <p>{document.description[lang]}</p>
                 <div className="document-actions">
-                  <button type="button" onClick={() => { setSelectedId(null); setSelectedWritingId(document.id); }} data-cursor={c.readPdf}>{c.readPdf} ↗</button>
-                  <a href={assetPath(document.src)} download={document.filename} data-cursor={c.downloadPdf}>{c.downloadPdf} ↓</a>
+                  <button type="button" onClick={() => { setSelectedId(null); setSelectedWritingId(document.id); }}>{c.readPdf} ↗</button>
+                  <a href={assetPath(document.src)} download={document.filename}>{c.downloadPdf} ↓</a>
                 </div>
               </article>
             ))}
@@ -745,7 +670,7 @@ export default function App() {
               <aside className="resume-cta">
                 <h3>{c.resumeCtaTitle}</h3>
                 <p>{c.resumeCtaBody}</p>
-                <a href={assetPath("/documents/wu-yunheng-resume.pdf")} download="Wu-Yunheng-Resume.pdf" data-cursor={c.resume}>{c.takeResume}<span aria-hidden="true">↓</span></a>
+                <a href={assetPath("/documents/wu-yunheng-resume.pdf")} download="Wu-Yunheng-Resume.pdf">{c.takeResume}<span aria-hidden="true">↓</span></a>
               </aside>
             </div>
           </div>
@@ -780,8 +705,8 @@ export default function App() {
             <h2>{c.ctaTitle}</h2>
             <span>{c.ctaBody}</span>
             <div className="contact-links">
-              <a href={`mailto:${c.email}`} data-cursor="EMAIL">{c.email}<span aria-hidden="true">↗</span></a>
-              <a href={assetPath("/documents/wu-yunheng-resume.pdf")} download="Wu-Yunheng-Resume.pdf" data-cursor={c.resume}>{c.resume}<span aria-hidden="true">↓</span></a>
+              <a href={`mailto:${c.email}`}>{c.email}<span aria-hidden="true">↗</span></a>
+              <a href={assetPath("/documents/wu-yunheng-resume.pdf")} download="Wu-Yunheng-Resume.pdf">{c.resume}<span aria-hidden="true">↓</span></a>
             </div>
           </div>
         </section>
