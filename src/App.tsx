@@ -16,6 +16,10 @@ function assetPath(path: string) {
   return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
 }
 
+function headline(text: string) {
+  return text.replace(/[。.!！]+$/u, "");
+}
+
 function CountUp({ value, decimals = 0, prefix = "", suffix = "", reduceMotion = false }: {
   value: number;
   decimals?: number;
@@ -72,6 +76,7 @@ function ParticleField({ reduceMotion, density = 180 }: { reduceMotion: boolean;
     let height = 0;
     let frame = 0;
     let visible = document.visibilityState === "visible";
+    const pointer = { x: -1000, y: -1000 };
     type Dot = { x: number; y: number; vx: number; vy: number; r: number };
     let dots: Dot[] = [];
 
@@ -93,6 +98,16 @@ function ParticleField({ reduceMotion, density = 180 }: { reduceMotion: boolean;
       }));
     };
 
+    const onPointerMove = (event: PointerEvent) => {
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+    };
+
+    const onPointerLeave = () => {
+      pointer.x = -1000;
+      pointer.y = -1000;
+    };
+
     const onVisibility = () => {
       visible = document.visibilityState === "visible";
       if (visible && frame === 0) {
@@ -112,6 +127,12 @@ function ParticleField({ reduceMotion, density = 180 }: { reduceMotion: boolean;
           dot.y += dot.vy;
           if (dot.x < 0 || dot.x > width) dot.vx *= -1;
           if (dot.y < 0 || dot.y > height) dot.vy *= -1;
+          const pointerDistance = Math.hypot(dot.x - pointer.x, dot.y - pointer.y);
+          if (pointerDistance < 120 && pointerDistance > 0) {
+            const force = (1 - pointerDistance / 120) * 0.42;
+            dot.x += ((dot.x - pointer.x) / pointerDistance) * force;
+            dot.y += ((dot.y - pointer.y) / pointerDistance) * force;
+          }
         }
         ctx.beginPath();
         ctx.fillStyle = "rgba(43, 98, 255, .7)";
@@ -133,6 +154,15 @@ function ParticleField({ reduceMotion, density = 180 }: { reduceMotion: boolean;
             ctx.stroke();
           }
         }
+        const pointerDistance = Math.hypot(dot.x - pointer.x, dot.y - pointer.y);
+        if (pointerDistance < 170) {
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(43, 98, 255, ${(1 - pointerDistance / 170) * 0.52})`;
+          ctx.lineWidth = 1;
+          ctx.moveTo(dot.x, dot.y);
+          ctx.lineTo(pointer.x, pointer.y);
+          ctx.stroke();
+        }
       }
       if (!reduceMotion && visible) frame = requestAnimationFrame(draw);
     };
@@ -145,11 +175,17 @@ function ParticleField({ reduceMotion, density = 180 }: { reduceMotion: boolean;
     resize();
     draw();
     if (!reduceMotion) {
+      window.addEventListener("pointermove", onPointerMove, { passive: true });
+      document.documentElement.addEventListener("pointerleave", onPointerLeave);
+      window.addEventListener("blur", onPointerLeave);
       document.addEventListener("visibilitychange", onVisibility);
     }
     return () => {
       cancelAnimationFrame(frame);
       resizeObserver.disconnect();
+      window.removeEventListener("pointermove", onPointerMove);
+      document.documentElement.removeEventListener("pointerleave", onPointerLeave);
+      window.removeEventListener("blur", onPointerLeave);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [density, reduceMotion]);
@@ -423,7 +459,6 @@ export default function App() {
   ];
 
   const activeCapability = c.capabilities[capability];
-  const activeCapabilityProject = projects.find((project) => project.id === activeCapability.projectId) ?? projects[0];
 
   return (
     <>
@@ -460,7 +495,7 @@ export default function App() {
             <div className="hero-copy">
               <p className="eyebrow reveal">{c.eyebrow}</p>
               <h1 className={`display-title reveal ${lang === "en" ? "display-title-en" : ""}`}>
-                {c.heroTitle.map((line) => <span key={line}>{line}</span>)}
+                {c.heroTitle.map((line) => <span key={line}>{headline(line)}</span>)}
               </h1>
               <p className="hero-lead reveal">{c.heroLead}</p>
               <div className="hero-actions reveal">
@@ -544,7 +579,7 @@ export default function App() {
         <section className="section positioning-section" id="positioning">
           <div className="section-label reveal">{c.positioningLabel}</div>
           <div className="positioning-grid">
-            <h2 className="reveal">{c.positioningTitle}</h2>
+            <h2 className="reveal">{headline(c.positioningTitle)}</h2>
             <div className="positioning-detail reveal">
               <p>{c.positioningBody}</p>
               <ol>{c.positioningSteps.map((step, index) => <li key={step}><span>0{index + 1}</span>{step}</li>)}</ol>
@@ -554,7 +589,7 @@ export default function App() {
 
         <section className="section work-section" id="work">
           <div className="section-heading reveal">
-            <div><span className="section-label">{c.workLabel}</span><h2>{c.workTitle}</h2></div>
+            <div><span className="section-label">{c.workLabel}</span><h2>{headline(c.workTitle)}</h2></div>
             <p>{c.workBody}</p>
           </div>
           <div className="filter-bar reveal" aria-label={lang === "zh" ? "案例筛选" : "Project filters"}>
@@ -568,9 +603,9 @@ export default function App() {
               <article className={`project-card project-${project.id}`} key={project.id}>
                 <button type="button" className="project-open" onClick={() => openProject(project.id)}>
                   <div className="project-media"><img src={assetPath(project.cover)} alt={project.title[lang]} loading="lazy" /></div>
-                  <div className="project-overlay">
+                  <div className="project-content">
                     <span className="project-topline"><b>{project.index}</b><em>{project.sector[lang]}</em><i>{project.documents.length} PDF</i></span>
-                    <div>
+                    <div className="project-copy">
                       <h3>{project.title[lang]}</h3>
                       <p>{project.summary[lang]}</p>
                       <span className="project-role">{project.role[lang]}</span>
@@ -586,7 +621,7 @@ export default function App() {
         <section className="capability-section" id="capabilities">
           <div className="capability-heading reveal">
             <span className="section-label">{c.capabilityLabel}</span>
-            <h2>{c.capabilityTitle}</h2>
+            <h2>{headline(c.capabilityTitle)}</h2>
             <p>{c.capabilityBody}</p>
           </div>
           <div className="capability-layout reveal">
@@ -596,24 +631,62 @@ export default function App() {
                   type="button"
                   key={item.title}
                   className={capability === index ? "active" : ""}
+                  aria-pressed={capability === index}
                   onMouseEnter={() => setCapability(index)}
                   onFocus={() => setCapability(index)}
-                  onClick={() => openProject(item.projectId)}
+                  onClick={() => setCapability(index)}
                 >
                   <span>0{index + 1}</span>
-                  <div><h3>{item.title}</h3><p>{item.body}</p><strong>{item.projects} ↗</strong></div>
+                  <div><h3>{item.title}</h3><p>{item.body}</p></div>
                 </button>
               ))}
             </div>
-            <button type="button" className="capability-preview" onClick={() => openProject(activeCapabilityProject.id)}>
-              <img src={assetPath(activeCapabilityProject.cover)} alt={activeCapabilityProject.title[lang]} />
-              <span>{activeCapability.projects}</span>
-            </button>
+            <div className={`capability-visual capability-visual-${capability + 1}`} aria-hidden="true">
+              <span className="capability-visual-number">0{capability + 1}</span>
+              <div className="capability-vector-stage">
+                {capability === 0 && (
+                  <div className="vector-radar">
+                    <span className="radar-ring radar-ring-1" /><span className="radar-ring radar-ring-2" /><span className="radar-ring radar-ring-3" />
+                    <span className="radar-axis radar-axis-1" /><span className="radar-axis radar-axis-2" /><span className="radar-axis radar-axis-3" />
+                    <span className="radar-core" />
+                  </div>
+                )}
+                {capability === 1 && (
+                  <div className="vector-writing">
+                    <span className="writing-mark">“</span>
+                    <span className="writing-line writing-line-1" /><span className="writing-line writing-line-2" />
+                    <span className="writing-line writing-line-3" /><span className="writing-line writing-line-4" />
+                    <span className="writing-cursor" />
+                  </div>
+                )}
+                {capability === 2 && (
+                  <div className="vector-network">
+                    <span className="network-line network-line-1" /><span className="network-line network-line-2" />
+                    <span className="network-line network-line-3" /><span className="network-line network-line-4" />
+                    <span className="network-node network-node-1" /><span className="network-node network-node-2" />
+                    <span className="network-node network-node-3" /><span className="network-node network-node-4" />
+                    <span className="network-node network-node-5" />
+                  </div>
+                )}
+                {capability === 3 && (
+                  <div className="vector-metrics">
+                    <span className="metric-bar metric-bar-1" /><span className="metric-bar metric-bar-2" />
+                    <span className="metric-bar metric-bar-3" /><span className="metric-bar metric-bar-4" />
+                    <span className="metric-trend metric-trend-1" /><span className="metric-trend metric-trend-2" />
+                    <span className="metric-dot metric-dot-1" /><span className="metric-dot metric-dot-2" /><span className="metric-dot metric-dot-3" />
+                  </div>
+                )}
+              </div>
+              <div className="capability-visual-caption">
+                <strong>{lang === "zh" ? "能力模型" : "CAPABILITY SYSTEM"}</strong>
+                <span>{activeCapability.title}</span>
+              </div>
+            </div>
           </div>
         </section>
 
         <section className="process-section" id="process">
-          <div className="process-heading reveal"><span className="section-label">{c.processLabel}</span><h2>{c.processTitle}</h2></div>
+          <div className="process-heading reveal"><span className="section-label">{c.processLabel}</span><h2>{headline(c.processTitle)}</h2></div>
           <div className="process-grid">
             {c.processSteps.map((step, index) => (
               <article className="process-step reveal" key={step.word}>
@@ -625,7 +698,7 @@ export default function App() {
 
         <section className="section writing-section" id="writing">
           <div className="section-heading reveal">
-            <div><span className="section-label">{c.writingLabel}</span><h2>{c.writingTitle}</h2></div>
+            <div><span className="section-label">{c.writingLabel}</span><h2>{headline(c.writingTitle)}</h2></div>
             <p>{c.writingBody}</p>
           </div>
           <div className="document-grid">
@@ -646,7 +719,7 @@ export default function App() {
 
         <section className="section experience-section" id="experience">
           <div className="section-heading reveal">
-            <div><span className="section-label">{c.experienceLabel}</span><h2>{c.experienceTitle}</h2></div>
+            <div><span className="section-label">{c.experienceLabel}</span><h2>{headline(c.experienceTitle)}</h2></div>
             <p>{c.experienceBody}</p>
           </div>
           <div className="experience-columns">
@@ -678,7 +751,7 @@ export default function App() {
 
         <section className="section toolkit-section" id="toolkit">
           <div className="section-heading reveal">
-            <div><span className="section-label">{c.toolkitLabel}</span><h2>{c.toolkitTitle}</h2></div>
+            <div><span className="section-label">{c.toolkitLabel}</span><h2>{headline(c.toolkitTitle)}</h2></div>
             <p>{c.toolkitBody}</p>
           </div>
           <div className="toolkit-grid">
@@ -690,7 +763,7 @@ export default function App() {
 
         <section className="section campus-section" id="campus">
           <div className="section-heading reveal">
-            <div><span className="section-label">{c.campusLabel}</span><h2>{c.campusTitle}</h2></div>
+            <div><span className="section-label">{c.campusLabel}</span><h2>{headline(c.campusTitle)}</h2></div>
           </div>
           <div className="campus-grid">
             {c.campus.map((item, index) => (
@@ -702,7 +775,7 @@ export default function App() {
         <section className="contact-section" id="contact">
           <div className="contact-inner reveal">
             <p>{c.ctaKicker}</p>
-            <h2>{c.ctaTitle}</h2>
+            <h2>{headline(c.ctaTitle)}</h2>
             <span>{c.ctaBody}</span>
             <div className="contact-links">
               <a href={`mailto:${c.email}`}>{c.email}<span aria-hidden="true">↗</span></a>
